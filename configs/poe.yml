@@ -1,0 +1,196 @@
+name: poe
+endpoint:
+  baseUrl: https://api.poe.com/v1
+  proxyUrl: http://127.0.0.1:8001
+auth:
+  apiKey: uJvIa7d8tjK_z66XI4PH9rBEegXxSGMg0QeadDw_E-w
+models:
+  - name: GPT-Image-1
+    capabilities:
+      generate:
+        inputSchema:
+          type: object
+          properties:
+            model:
+              type: string
+              minLength: 1
+            prompt:
+              type: string
+              minLength: 1
+            size:
+              type: string
+              enum:
+                ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", 1024x1024]
+            aspectRatio:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            quality:
+              type: string
+              enum: [low, medium, high]
+            outputName:
+              type: string
+          required: [model, prompt]
+          anyOf:
+            - required: [size]
+            - required: [aspectRatio]
+          additionalProperties: false
+        request:
+          kind: chat_completions
+          sizeMode: ratio_or_pixel
+          aspectField: aspect
+        response:
+          defaultFormat: url
+          allowedFormats: []
+          parserByFormat:
+            url: message_content_image
+  - name: gpt-image-1.5
+    capabilities:
+      generate:
+        inputSchema:
+          type: object
+          properties:
+            model:
+              type: string
+              minLength: 1
+            prompt:
+              type: string
+              minLength: 1
+            size:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            aspectRatio:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            useMask:
+              type: boolean
+            outputName:
+              type: string
+          required: [model, prompt]
+          anyOf:
+            - required: [size]
+            - required: [aspectRatio]
+          additionalProperties: false
+        request:
+          kind: chat_completions
+          sizeMode: ratio
+          aspectField: aspect
+          defaultArguments:
+            useMask: true
+        response:
+          defaultFormat: url
+          allowedFormats: []
+          parserByFormat:
+            url: message_content_image
+  - name: grok-imagine-image
+    capabilities:
+      generate:
+        inputSchema:
+          type: object
+          properties:
+            model:
+              type: string
+              minLength: 1
+            prompt:
+              type: string
+              minLength: 1
+            size:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            aspectRatio:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            outputName:
+              type: string
+          required: [model, prompt]
+          anyOf:
+            - required: [size]
+            - required: [aspectRatio]
+          additionalProperties: false
+        request:
+          kind: chat_completions
+          sizeMode: ratio
+          aspectField: aspect
+        response:
+          defaultFormat: url
+          allowedFormats: []
+          parserByFormat:
+            url: message_content_image
+  - name: nano-banana-pro
+    capabilities:
+      generate:
+        inputSchema:
+          type: object
+          properties:
+            model:
+              type: string
+              minLength: 1
+            prompt:
+              type: string
+              minLength: 1
+            size:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            aspectRatio:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            imageSize:
+              type: string
+              enum: ["1024", "2K"]
+            imageOnly:
+              type: boolean
+            webSearch:
+              type: boolean
+            outputName:
+              type: string
+          required: [model, prompt]
+          anyOf:
+            - required: [size]
+            - required: [aspectRatio]
+          additionalProperties: false
+        request:
+          kind: chat_completions
+          sizeMode: ratio
+          aspectField: aspect_ratio
+          imageSizeField: image_size
+          defaultArguments:
+            imageOnly: true
+            webSearch: true
+        response:
+          defaultFormat: url
+          allowedFormats: []
+          parserByFormat:
+            url: message_content_image
+  - name: seedream-5.0-lite
+    capabilities:
+      generate:
+        inputSchema:
+          type: object
+          properties:
+            model:
+              type: string
+              minLength: 1
+            prompt:
+              type: string
+              minLength: 1
+            size:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            aspectRatio:
+              type: string
+              enum: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]
+            outputName:
+              type: string
+          required: [model, prompt]
+          anyOf:
+            - required: [size]
+            - required: [aspectRatio]
+          additionalProperties: false
+        request:
+          kind: chat_completions
+          sizeMode: ratio
+          aspectField: aspect
+        response:
+          defaultFormat: url
+          allowedFormats: []
+          parserByFormat:
+            url: message_content_image
