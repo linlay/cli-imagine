@@ -16,12 +16,17 @@
     "aspectRatio": {
       "enum": [
         "1:1",
-        "3:2",
-        "2:3",
-        "4:3",
         "3:4",
-        "16:9",
-        "9:16"
+        "4:3",
+        "9:16",
+        "16:9"
+      ],
+      "type": "string"
+    },
+    "imageSize": {
+      "enum": [
+        "1024",
+        "2K"
       ],
       "type": "string"
     },
@@ -36,31 +41,21 @@
       "minLength": 1,
       "type": "string"
     },
-    "quality": {
-      "enum": [
-        "low",
-        "medium",
-        "high"
-      ],
-      "type": "string"
-    },
     "size": {
       "enum": [
         "1:1",
-        "3:2",
-        "2:3",
-        "4:3",
         "3:4",
-        "16:9",
+        "4:3",
         "9:16",
-        "1024x1024"
+        "16:9"
       ],
       "type": "string"
     }
   },
   "required": [
     "model",
-    "prompt"
+    "prompt",
+    "imageSize"
   ],
   "type": "object"
 }

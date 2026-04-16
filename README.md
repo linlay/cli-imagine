@@ -1,30 +1,52 @@
 # cli-imagine
 
-`cli-imagine` 是一个 Go 1.26 的本地图像 CLI，把原先 `mcp-server-imagine` 的核心能力收敛成可直接执行的命令行工具。
+`cli-imagine` 是一个 Go 1.26 的本地图像 CLI，把不同 provider 的图像模型能力收敛成统一命令行调用。
 
-用户安装、配置、验证和排障看这个 README；项目设计、目录边界和内部语义见 [CLAUDE.md](./CLAUDE.md)。
+用户安装、配置、验证和排障看这个 README；项目分层、内部语义和维护约定见 [CLAUDE.md](./CLAUDE.md)。
 
 ## 1. 项目简介
 
 `cli-imagine` 解决的是“把不同图像 provider 的模型能力配置化，然后用统一 CLI 执行生图、改图、导入和检查”这个问题。
 
-当前仓库的核心能力包括：
+当前仓库提供：
 
-- 读取本地 provider `*.toml` 配置和外部 JSON schema
-- 发现 provider / model / operation
-- 执行 `image.generate`、`image.edit`、`image.import`
-- 用 `inspect` 预览最终请求，而不真正发请求
-- 用 `verify` 对当前配置里的模型做真实连通性验证
+- provider / model / operation discovery
+- `image.generate`、`image.edit`、`image.import`
+- `inspect` 预览最终请求而不真正发请求
+- `verify` 对当前配置执行真实连通性验证
+- `config import-yaml` 把仓库维护的 YAML 源配置转换成正式运行配置
 
-它不再暴露 HTTP MCP 服务；运行入口就是本地二进制 `imagine`。
+它不再提供 HTTP MCP 服务；运行入口就是本地二进制 `imagine`。
 
-## 2. 快速开始
+## 2. 配置目录约定
+
+当前仓库里有两套职责明确的配置目录：
+
+- `configs/`
+  - 仓库内维护的 YAML 源配置
+  - 方便直接录入 provider API 细节和内嵌 schema
+  - 当前仓库里的 `apiKey` 明文保持现状，这一轮没有改成 env/file
+- `examples/`
+  - 正式运行配置目录
+  - 供 `--config ./examples` 直接加载
+  - 内容是 `TOML + 外部 schema JSON`
+
+运行时不会直接读取 `configs/*.yml`。
+
+要从源 YAML 重新生成正式配置，执行：
+
+```bash
+go run ./cmd/imagine config import-yaml --from ./configs --to ./examples
+```
+
+`configs/provider.example.yml` 是新增 provider 时可参考的 YAML 模板。
+
+## 3. 快速开始
 
 ### 前置要求
 
 - Go 1.26
 - 可访问的图像 provider endpoint
-- 至少一个 provider TOML 配置文件及其引用的 schema JSON
 - 对输出目录有写权限
 
 ### 本地构建
@@ -35,12 +57,14 @@ go build -o ./imagine ./cmd/imagine
 ./imagine --help
 ```
 
-### 用仓库示例配置做 discovery
+### 生成正式配置并做 discovery
 
 ```bash
+./imagine config import-yaml --from ./configs --to ./examples
+./imagine --config ./examples config validate
 ./imagine --config ./examples providers
-./imagine --config ./examples models
-./imagine --config ./examples model GPT-Image-1
+./imagine --config ./examples models --provider babelark
+./imagine --config ./examples model gemini-2.5-flash-image
 ```
 
 ### 常见执行方式
@@ -50,9 +74,9 @@ go build -o ./imagine ./cmd/imagine
 ```bash
 ./imagine generate \
   --config ./examples \
-  --model GPT-Image-1 \
+  --model gemini-2.5-flash-image \
   --prompt "A red panda reading in a lantern-lit forest" \
-  --arg size='"1:1"'
+  --arg size='"1024x1024"'
 
 ./imagine edit \
   --config ./examples \
@@ -71,25 +95,38 @@ go build -o ./imagine ./cmd/imagine
 ```bash
 ./imagine run image.generate \
   --config ./examples \
-  --args '{"model":"GPT-Image-1","prompt":"otter","size":"1:1"}'
+  --args '{"model":"gemini-2.5-flash-image","prompt":"otter","size":"1024x1024"}'
 
 ./imagine inspect image.generate \
   --config ./examples \
-  --args '{"model":"GPT-Image-1","prompt":"otter","size":"1:1"}'
+  --args '{"model":"gemini-2.5-flash-image","prompt":"otter","size":"1024x1024"}'
 ```
 
-### 配置校验与真实验证
+### 留在项目里的样图
+
+仓库约定的样图生成命令是：
 
 ```bash
-./imagine --config ./examples config validate
-./imagine --config ./examples verify --output-dir ./tmp
+./imagine generate \
+  --config ./examples \
+  --model gemini-2.5-flash-image \
+  --prompt "A clean technical cover image for a CLI image generation tool, terminal + config files + image workflow, flat modern illustration, square composition" \
+  --arg size='"1024x1024"' \
+  --output-dir ./examples/output \
+  --output-name sample-babelark-gemini-2-5-flash-image.png
 ```
 
-`verify` 会在 `<output-dir>/verification/<timestamp>/summary.md` 写出验证摘要。
+成功后会写出：
 
-## 3. 配置说明
+```text
+examples/output/sample-babelark-gemini-2-5-flash-image.png
+```
 
-### 配置目录
+这个样图只作为项目内示例输出保留，不作为文档主视觉资产。
+
+## 4. 配置说明
+
+### 默认配置目录
 
 默认配置目录为：
 
@@ -105,47 +142,43 @@ $XDG_CONFIG_HOME/imagine
 
 也可以通过 `--config <dir>` 显式指定。
 
-推荐目录形态：
+### 正式运行配置规则
 
-```text
-<config-dir>/
-  poe.toml
-  schemas/
-    poe/
-      GPT-Image-1.generate.json
-      gemini-2.5-flash-image-edit.edit.json
-```
-
-### provider TOML 规则
-
-当前配置模型是“每个 provider 一个 TOML 文件”：
+运行时正式读取的是 `TOML + 外部 schema JSON`：
 
 - 根目录只扫描当前层级的 `*.toml`
 - provider 名不能重复
 - model 名不能重复
 - 每个 provider 必须声明 `endpoint.base_url`
 - 每个 model 至少包含一个 capability：`generate` 或 `edit`
+- `input_schema` 相对路径相对于 provider TOML 所在目录解析
 
-仓库示例见：
+当前正式示例见：
 
+- [examples/babelark.toml](./examples/babelark.toml)
 - [examples/poe.toml](./examples/poe.toml)
+- [examples/schemas/babelark/gemini-2-5-flash-image.generate.json](./examples/schemas/babelark/gemini-2-5-flash-image.generate.json)
 - [examples/schemas/poe/GPT-Image-1.generate.json](./examples/schemas/poe/GPT-Image-1.generate.json)
-- [examples/schemas/poe/gemini-2.5-flash-image-edit.edit.json](./examples/schemas/poe/gemini-2.5-flash-image-edit.edit.json)
 
-### schema 与 capability
+### YAML 源配置与迁移
 
-每个 capability 的 `input_schema` 都指向外部 JSON 文件，路径既可以写绝对路径，也可以写相对 provider TOML 的相对路径。
+`configs/*.yml` 允许直接内嵌 `inputSchema`，更适合维护 provider API 细节。
 
-运行时会对 schema 做两件事：
+`config import-yaml` 会把它们转换成：
 
-- 加载并编译 JSON schema
-- 根据 capability 的 `request.kind`、`size_mode`、`response.parser_by_format` 推导请求构造与响应解析方式
+- `examples/<provider>.toml`
+- `examples/schemas/<provider>/*.json`
 
-当前内置的 tool 名是：
+当前 `configs/` 中涉及的 request kind / parser 都已被运行时支持，包括：
 
-- `image.generate`
-- `image.edit`
-- `image.import`
+- `images_generate`
+- `images_edit`
+- `generate_content`
+- `chat_completions`
+- `data_b64_json`
+- `data_url`
+- `candidates_inline_data`
+- `message_content_image`
 
 ### 鉴权与 endpoint 覆盖
 
@@ -156,7 +189,7 @@ provider 和 model 都可以声明 `endpoint` 与 `auth`。合并规则是：
 - `auth` 必须且只能设置 `api_key`、`api_key_env`、`api_key_file` 三者之一
 - 如果使用 `api_key_env` 或 `api_key_file`，最终解析出的 key 不能为空
 
-推荐优先使用 `api_key_env` 或 `api_key_file`，不要把真实 key 提交进仓库。
+当前仓库维护的 YAML 源配置仍保留明文 `apiKey`，这次没有切到 env/file；CLI 本身仍然支持三种鉴权写法。
 
 ### 命令参数合并规则
 
@@ -181,7 +214,7 @@ provider 和 model 都可以声明 `endpoint` 与 `auth`。合并规则是：
 .imagine-assets.json
 ```
 
-这个 manifest 会记录每个产物的：
+manifest 会记录每个产物的：
 
 - `assetId`
 - `kind`
@@ -202,59 +235,39 @@ provider 和 model 都可以声明 `endpoint` 与 `auth`。合并规则是：
 - `base64`
 - `data_path`
 
-## 4. 部署
-
-`cli-imagine` 是本地 CLI，不是常驻服务。当前仓库也没有 Dockerfile 或 docker-compose 编排，因此这里的“部署”主要指二进制分发与运行时目录准备。
-
-### 二进制产物
-
-推荐直接从源码构建：
-
-```bash
-go build -o ./imagine ./cmd/imagine
-```
-
-构建完成后，可以把 `imagine` 放到任意可执行目录，或在当前项目目录直接运行。
-
-### 运行时准备
-
-上线到某台开发机、跳板机或自动化环境时，至少需要准备：
-
-- 一个可执行的 `imagine` 二进制
-- 一个 provider 配置目录
-- schema JSON 文件
-- 通过环境变量或本地 secret 文件提供的 API key
-- 一个可写的输出目录
-
-如果目标环境需要代理访问 provider，可以在 provider 或 model 的 `endpoint.proxy_url` 中配置代理地址；model 级代理会覆盖 provider 级默认值。
-
 ## 5. 运维
 
 ### 常规检查命令
 
-先校验配置是否能被加载：
+先把 YAML 源配置生成成正式运行配置：
 
 ```bash
-./imagine --config <dir> config validate
+./imagine config import-yaml --from ./configs --to ./examples
 ```
 
-再检查某个 tool 的最终请求：
+再校验配置是否能被加载：
 
 ```bash
-./imagine --config <dir> inspect image.generate --args '{"model":"...","prompt":"..."}'
+./imagine --config ./examples config validate
+```
+
+然后检查某个 tool 的最终请求：
+
+```bash
+./imagine --config ./examples inspect image.generate --args '{"model":"gemini-2.5-flash-image","prompt":"otter","size":"1024x1024"}'
 ```
 
 最后再做真实请求验证：
 
 ```bash
-./imagine --config <dir> verify --output-dir ./tmp
+./imagine --config ./examples verify --output-dir ./tmp
 ```
 
 ### 常见排查
 
-- 如果提示没有配置文件，先确认 `--config` 是否指向包含 `*.toml` 的目录
+- 如果提示没有配置文件，先确认 `--config` 是否指向包含 `*.toml` 的目录，而不是 `configs/`
 - 如果提示 schema 错误，先检查 `input_schema` 路径是否存在，且 JSON schema 能被正确编译
-- 如果提示鉴权错误，检查 `api_key_env` 对应环境变量是否已注入，或 `api_key_file` 是否可读且内容非空
+- 如果提示鉴权错误，检查当前 TOML 中使用的是 `api_key`、`api_key_env` 还是 `api_key_file`
 - 如果 `inspect` 正常但 `run`/`verify` 失败，优先排查 provider 网络连通性、代理配置和上游接口返回
 - 如果产物没有落盘，确认 `--output-dir` 对当前用户可写
 
@@ -274,11 +287,11 @@ go build -o ./imagine ./cmd/imagine
 - `2`：配置错误
 - `3`：执行错误
 
-## 常用命令
+## 6. 常用命令
 
 ```bash
 ./imagine providers
-./imagine models
+./imagine models --provider <provider>
 ./imagine model <model>
 ./imagine generate ...
 ./imagine edit ...
@@ -290,5 +303,3 @@ go build -o ./imagine ./cmd/imagine
 ./imagine verify
 ./imagine version
 ```
-
-`config import-yaml` 用于把旧版 YAML provider 配置迁移成当前的 TOML + schema JSON 目录结构。

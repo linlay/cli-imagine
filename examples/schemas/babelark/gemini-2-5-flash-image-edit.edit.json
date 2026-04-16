@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "images": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "model": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "outputName": {
+      "type": "string"
+    },
+    "prompt": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "size": {
+      "enum": [
+        "256x256",
+        "512x512",
+        "1024x1024",
+        "1792x1024",
+        "1024x1792"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "model",
+    "prompt",
+    "images",
+    "size"
+  ],
+  "type": "object"
+}

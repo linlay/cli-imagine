@@ -10,10 +10,10 @@
 
 它的目标是：
 
-- 把 provider 差异收敛到本地 TOML + JSON schema 配置
+- 把 provider 差异收敛到本地配置
 - 把图像生成、图像编辑、外部图片导入统一成稳定的 CLI 调用方式
 - 让调用方可以先 discovery，再 inspect，再真正执行
-- 让维护者可以基于配置目录快速接入新模型或迁移旧 YAML 配置
+- 让维护者可以用 `configs/` 维护 API 源配置，再稳定导出到 `examples/`
 
 它不打算解决的问题：
 
@@ -24,7 +24,7 @@
 ## 2. 技术栈
 
 - 语言：Go 1.26
-- CLI 框架：`spf13/cobra`
+- CLI 框架：`spf13/cobra`，但当前仓库通过 `third_party/cobra` 替换为本地精简实现
 - 配置解码：`github.com/pelletier/go-toml/v2`
 - schema 编译：`github.com/santhosh-tekuri/jsonschema/v5`
 - YAML 迁移：`gopkg.in/yaml.v3`
@@ -43,7 +43,7 @@
 
 - `cmd/imagine`：程序入口，只负责把进程参数交给 `internal/app`
 - `internal/app`：CLI 命令装配、flag 解析、输出格式选择、退出码映射
-- `internal/config`：扫描配置目录、加载 provider TOML、解析 auth、编译 capability schema、导入旧 YAML
+- `internal/config`：扫描正式运行配置目录、加载 provider TOML、解析 auth、编译 capability schema、导入 YAML 源配置
 - `internal/imagine`：模型目录、参数校验、请求构造、provider 调用、图片导入、资产落盘
 - `internal/verify`：基于当前配置自动推导最小合法参数，执行 inspect + real run，并写摘要
 - `internal/schema`：schema 编译与校验辅助
@@ -52,7 +52,7 @@
 
 - Cobra 类型不进入 `internal/imagine` 运行时逻辑
 - 运行时只接收标准化后的 `tool + args` 输入
-- 配置加载在执行前完成，运行时不直接关心 TOML 文件扫描
+- 配置加载在执行前完成，运行时不直接关心 YAML 扫描
 - 资产持久化统一由 `Storage` 管理，输出目录是其安全边界
 
 ## 4. 目录结构
@@ -60,20 +60,25 @@
 ```text
 cli-imagine/
   cmd/imagine/                 # CLI 入口
+  configs/                     # 仓库维护的 YAML 源配置
+  examples/                    # 正式运行配置（TOML + 外部 schema）
   internal/app/                # Cobra 命令、flag 解析、输出渲染、退出码
   internal/buildinfo/          # 版本与构建信息
-  internal/config/             # TOML/YAML 配置加载、schema 路径解析、迁移逻辑
+  internal/config/             # TOML 加载、schema 路径解析、YAML 导入
   internal/imagine/            # tool 运行时、模型目录、provider 请求、存储
   internal/jsonutil/           # JSON 辅助
   internal/schema/             # JSON schema 编译/校验
   internal/verify/             # 真实验证与 summary 生成
-  examples/                    # 示例 provider TOML 与 schema
   third_party/                 # 本地替换的第三方依赖
   README.md                    # 用户文档
   CLAUDE.md                    # 项目事实文档
 ```
 
-当前根目录没有 `Dockerfile`、`docker-compose.yml`、`Makefile`、`.env.example`。这些不属于现有代码路径的一部分，如果未来引入，需要明确其职责边界，避免与当前配置目录模型冲突。
+补充说明：
+
+- `configs/` 不是运行时配置目录，运行时不会直接读取这里的 `*.yml`
+- `examples/` 是唯一正式示例目录，应始终保持可被 `--config ./examples` 直接加载
+- `config/` 目录现在只保留运行时需要的忽略规则，不再维护重复示例
 
 ## 5. 数据结构
 
@@ -131,6 +136,12 @@ cli-imagine/
 - `image.edit`
 - `image.import`
 
+当前必须可用的 CLI 交互包括：
+
+- `imagine config import-yaml --from <src> --to <dst>`
+- `imagine models --provider <name>`
+- `imagine generate --model <name> ...`
+
 输出约定：
 
 - `providers`、`models`、`model` 默认输出 text，可切到 `--format json`
@@ -149,50 +160,58 @@ cli-imagine/
 
 配置加载规则：
 
-- 只扫描配置目录当前层的 `*.toml`
+- `LoadDir` 只扫描正式配置目录当前层级的 `*.toml`
 - provider 名、model 名都必须唯一
 - `input_schema` 相对路径相对于 provider TOML 所在目录解析
 - capability schema 会在加载期编译，错误尽量前置暴露
+
+YAML 导入规则：
+
+- `configs/*.yml` 是源配置，`provider.example.yml` 这类模板文件不应被导入到正式运行目录
+- `ImportYAML` 负责把内嵌 `inputSchema` 拆成外部 JSON 文件
+- 导出的正式配置默认写到 `examples/`
+- 新增或修改 provider API 时，优先更新 `configs/`，再重新导出 `examples/`
 
 鉴权规则：
 
 - `auth` 必须且只能配置 `api_key`、`api_key_env`、`api_key_file` 之一
 - model 一旦声明 `auth`，即整体覆盖 provider `auth`
 - `api_key_env` / `api_key_file` 会在加载期解析成真实 key
+- 当前仓库维护的 YAML 源配置仍保留明文 `apiKey`；这一轮没有迁移到 env/file
 
 请求构造规则：
 
 - generate/edit 先把 CLI 参数标准化，再根据 capability 的 `request.kind` 与 `size_mode` 组装请求
 - 当前支持的 request kind 包括 `images_generate`、`generate_content`、`images_edit`、`chat_completions`
+- 当前支持的 parser 包括 `data_b64_json`、`data_url`、`candidates_inline_data`、`message_content_image`
 - 响应解析通过 `response.default_format` 和 `parser_by_format` 决定
+
+CLI 解析规则：
+
+- 子命令必须先被识别，再让子命令解析自己的本地 flags
+- inherited persistent flags 不能吞掉 leaf command 的本地 flags
+- 修改 `third_party/cobra` 时，至少回归 `import-yaml`、`models --provider`、`generate --model`
 
 存储规则：
 
 - 输出目录默认是当前目录
 - 所有输出文件都必须落在输出目录内部
 - `data_path` 导入只能读取输出目录内的相对路径，不能越界访问
-
-测试与验证建议：
-
-- 改配置加载逻辑时先跑 `go test ./...`
-- 接入新模型时先跑 `config validate`
-- 真正联调前先跑 `inspect`
-- 只有在确认会访问真实 provider 时才跑 `verify`
+- 项目样图固定保留在 `examples/output/sample-babelark-gemini-2-5-flash-image.png`
 
 ## 8. 开发流程
 
 推荐的日常变更流程：
 
 1. 明确变更是在 CLI 层、配置层还是运行时层
-2. 如果涉及新模型或新 provider，先补 `examples/` 中的最小示例
-3. 运行 `go test ./...`
-4. 用 `imagine --config <dir> config validate` 验证配置可加载
-5. 用 `imagine --config <dir> inspect <tool> ...` 检查最终请求是否符合预期
-6. 必要时再用 `verify` 做真实请求验证
-7. 如果变更影响用户使用方式，同步更新 `README.md`
-8. 如果变更影响分层、语义或目录边界，同步更新 `CLAUDE.md`
-
-对旧配置兼容迁移时，优先保持 `config import-yaml --from <src> --to <dst>` 这条迁移链路可用，不要手动散落多个迁移脚本。
+2. 如果涉及 provider API 变更，先更新 `configs/`
+3. 运行 `go run ./cmd/imagine config import-yaml --from ./configs --to ./examples`
+4. 运行 `go test ./...`
+5. 用 `imagine --config ./examples config validate` 验证配置可加载
+6. 用 `imagine --config ./examples inspect <tool> ...` 检查最终请求是否符合预期
+7. 必要时再用 `generate` 或 `verify` 做真实请求验证
+8. 如果变更影响用户使用方式，同步更新 `README.md`
+9. 如果变更影响分层、语义或目录边界，同步更新 `CLAUDE.md`
 
 ## 9. 已知约束与注意事项
 

@@ -25,6 +25,16 @@
       ],
       "type": "string"
     },
+    "imageOnly": {
+      "type": "boolean"
+    },
+    "imageSize": {
+      "enum": [
+        "1024",
+        "2K"
+      ],
+      "type": "string"
+    },
     "model": {
       "minLength": 1,
       "type": "string"
@@ -36,14 +46,6 @@
       "minLength": 1,
       "type": "string"
     },
-    "quality": {
-      "enum": [
-        "low",
-        "medium",
-        "high"
-      ],
-      "type": "string"
-    },
     "size": {
       "enum": [
         "1:1",
@@ -52,10 +54,12 @@
         "4:3",
         "3:4",
         "16:9",
-        "9:16",
-        "1024x1024"
+        "9:16"
       ],
       "type": "string"
+    },
+    "webSearch": {
+      "type": "boolean"
     }
   },
   "required": [

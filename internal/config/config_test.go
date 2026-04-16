@@ -245,6 +245,42 @@ models:
 	}
 }
 
+func TestImportYAMLShouldConvertRepositoryConfigs(t *testing.T) {
+	src := filepath.Join("..", "..", "configs")
+	dst := t.TempDir()
+
+	written, err := ImportYAML(src, dst)
+	if err != nil {
+		t.Fatalf("ImportYAML repository configs: %v", err)
+	}
+	if len(written) == 0 {
+		t.Fatal("expected converted files to be written")
+	}
+	for _, path := range written {
+		if strings.Contains(path, "provider.example") {
+			t.Fatalf("expected example template to be skipped, got %s", path)
+		}
+	}
+
+	cfg, err := LoadDir(dst)
+	if err != nil {
+		t.Fatalf("LoadDir on imported repository configs: %v", err)
+	}
+	if len(cfg.Providers) != 2 {
+		t.Fatalf("expected 2 providers, got %d", len(cfg.Providers))
+	}
+	if len(cfg.Models) != 10 {
+		t.Fatalf("expected 10 models, got %d", len(cfg.Models))
+	}
+	model, ok := LookupModel(cfg, "gemini-2.5-flash-image")
+	if !ok {
+		t.Fatal("expected gemini-2.5-flash-image to be imported")
+	}
+	if model.Capabilities.Generate == nil || model.Capabilities.Generate.Request.Kind != "images_generate" {
+		t.Fatalf("unexpected generate capability: %#v", model.Capabilities.Generate)
+	}
+}
+
 func writeSchema(t *testing.T, path string, schema map[string]any) {
 	t.Helper()
 	payload, err := json.MarshalIndent(schema, "", "  ")

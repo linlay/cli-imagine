@@ -145,6 +145,12 @@ func (c *Command) Help() error {
 }
 
 func (c *Command) execute(args []string) error {
+	if child, childArgs, ok, err := c.resolveChild(args); err != nil {
+		return err
+	} else if ok {
+		return child.execute(childArgs)
+	}
+
 	persistentArgs, err := c.parsePersistentFlags(args)
 	if err != nil {
 		return err
@@ -157,10 +163,6 @@ func (c *Command) execute(args []string) error {
 		case "-h", "--help":
 			return c.printHelp()
 		}
-	}
-
-	if child := c.findChild(persistentArgs); child != nil {
-		return child.execute(persistentArgs[1:])
 	}
 
 	parsedArgs, err := c.parseFlags(persistentArgs)
@@ -193,6 +195,49 @@ func (c *Command) execute(args []string) error {
 	return c.printHelp()
 }
 
+func (c *Command) resolveChild(args []string) (*Command, []string, bool, error) {
+	if len(c.children) == 0 {
+		return nil, nil, false, nil
+	}
+	flags := c.localAndInheritedFlags()
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "--":
+			return nil, nil, false, nil
+		case "-h", "--help":
+			return nil, nil, false, nil
+		}
+		if !strings.HasPrefix(arg, "--") {
+			child := c.findChild([]string{arg})
+			if child == nil {
+				return nil, nil, false, nil
+			}
+			childArgs := append([]string{}, args[:i]...)
+			childArgs = append(childArgs, args[i+1:]...)
+			return child, childArgs, true, nil
+		}
+
+		nameValue := strings.TrimPrefix(arg, "--")
+		name, _, hasValue := strings.Cut(nameValue, "=")
+		f := lookupFlag(flags, name)
+		if f == nil {
+			return nil, nil, false, fmt.Errorf("unknown flag: --%s", name)
+		}
+		if hasValue {
+			continue
+		}
+		if flagValue, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && flagValue.IsBoolFlag() {
+			continue
+		}
+		i++
+		if i >= len(args) {
+			return nil, nil, false, fmt.Errorf("flag needs an argument: --%s", name)
+		}
+	}
+	return nil, nil, false, nil
+}
+
 func (c *Command) helpFor(args []string) error {
 	target := c
 	for _, arg := range args {
@@ -223,7 +268,7 @@ func (c *Command) parseFlags(args []string) ([]string, error) {
 	if len(flags) == 0 {
 		return args, nil
 	}
-	return parseFlags(args, flags)
+	return parseFlags(args, flags, false)
 }
 
 func (c *Command) parsePersistentFlags(args []string) ([]string, error) {
@@ -231,7 +276,7 @@ func (c *Command) parsePersistentFlags(args []string) ([]string, error) {
 	if len(flags) == 0 {
 		return args, nil
 	}
-	return parseFlags(args, flags)
+	return parseFlags(args, flags, true)
 }
 
 func (c *Command) printHelp() error {
@@ -332,7 +377,7 @@ func (c *Command) helpFlags() []*flag.FlagSet {
 	return c.localAndInheritedFlags()
 }
 
-func parseFlags(args []string, flagSets []*flag.FlagSet) ([]string, error) {
+func parseFlags(args []string, flagSets []*flag.FlagSet, ignoreUnknown bool) ([]string, error) {
 	positionals := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -349,6 +394,10 @@ func parseFlags(args []string, flagSets []*flag.FlagSet) ([]string, error) {
 		name, value, hasValue := strings.Cut(nameValue, "=")
 		f := lookupFlag(flagSets, name)
 		if f == nil {
+			if ignoreUnknown {
+				positionals = append(positionals, arg)
+				continue
+			}
 			return nil, fmt.Errorf("unknown flag: --%s", name)
 		}
 		if !hasValue {

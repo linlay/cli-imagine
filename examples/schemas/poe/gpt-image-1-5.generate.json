@@ -36,14 +36,6 @@
       "minLength": 1,
       "type": "string"
     },
-    "quality": {
-      "enum": [
-        "low",
-        "medium",
-        "high"
-      ],
-      "type": "string"
-    },
     "size": {
       "enum": [
         "1:1",
@@ -52,10 +44,12 @@
         "4:3",
         "3:4",
         "16:9",
-        "9:16",
-        "1024x1024"
+        "9:16"
       ],
       "type": "string"
+    },
+    "useMask": {
+      "type": "boolean"
     }
   },
   "required": [

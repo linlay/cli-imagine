@@ -1,0 +1,111 @@
+name = 'babelark'
+
+[endpoint]
+base_url = 'https://api.babelark.com'
+proxy_url = ''
+
+[auth]
+api_key = 'sk-QXkwnHrZZpodDKJzMCbbSQDVyAwTBgF3WhKrEgIiGhJ1yhgS'
+api_key_env = ''
+api_key_file = ''
+
+[[models]]
+name = 'gemini-2.5-flash-image'
+
+[models.capabilities]
+[models.capabilities.generate]
+input_schema = 'schemas/babelark/gemini-2-5-flash-image.generate.json'
+
+[models.capabilities.generate.request]
+kind = 'images_generate'
+size_mode = 'standard'
+aspect_field = ''
+image_size_field = ''
+
+[models.capabilities.generate.response]
+default_format = 'b64_json'
+allowed_formats = ['b64_json', 'url']
+
+[models.capabilities.generate.response.parser_by_format]
+b64_json = 'data_b64_json'
+url = 'data_url'
+
+[[models]]
+name = 'gemini-2.5-flash-image-edit'
+
+[models.capabilities]
+[models.capabilities.edit]
+input_schema = 'schemas/babelark/gemini-2-5-flash-image-edit.edit.json'
+
+[models.capabilities.edit.request]
+kind = 'images_edit'
+size_mode = 'standard'
+aspect_field = ''
+image_size_field = ''
+
+[models.capabilities.edit.response]
+default_format = 'b64_json'
+allowed_formats = []
+
+[models.capabilities.edit.response.parser_by_format]
+b64_json = 'data_b64_json'
+
+[[models]]
+name = 'gemini-3.1-flash-image-preview'
+
+[models.capabilities]
+[models.capabilities.generate]
+input_schema = 'schemas/babelark/gemini-3-1-flash-image-preview.generate.json'
+
+[models.capabilities.generate.request]
+kind = 'generate_content'
+size_mode = 'ratio'
+aspect_field = 'aspectRatio'
+image_size_field = 'imageSize'
+
+[models.capabilities.generate.response]
+default_format = 'b64_json'
+allowed_formats = []
+
+[models.capabilities.generate.response.parser_by_format]
+b64_json = 'candidates_inline_data'
+
+[[models]]
+name = 'gemini-3-pro-image-preview'
+
+[models.capabilities]
+[models.capabilities.generate]
+input_schema = 'schemas/babelark/gemini-3-pro-image-preview.generate.json'
+
+[models.capabilities.generate.request]
+kind = 'generate_content'
+size_mode = 'ratio'
+aspect_field = 'aspectRatio'
+image_size_field = 'imageSize'
+
+[models.capabilities.generate.response]
+default_format = 'b64_json'
+allowed_formats = []
+
+[models.capabilities.generate.response.parser_by_format]
+b64_json = 'candidates_inline_data'
+
+[[models]]
+name = 'doubao-seedream-4-5'
+
+[models.capabilities]
+[models.capabilities.edit]
+input_schema = 'schemas/babelark/doubao-seedream-4-5.edit.json'
+
+[models.capabilities.edit.request]
+kind = 'images_edit'
+size_mode = 'pixel_star'
+aspect_field = ''
+image_size_field = ''
+
+[models.capabilities.edit.response]
+default_format = 'b64_json'
+allowed_formats = []
+
+[models.capabilities.edit.response.parser_by_format]
+b64_json = 'data_b64_json'
