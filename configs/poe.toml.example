@@ -3,11 +3,10 @@ name = 'poe'
 [endpoint]
 base_url = 'https://api.poe.com/v1'
 proxy_url = 'http://127.0.0.1:8001'
-timeout_ms = 120000
 
 [auth]
-api_key = 'sk-poe-OUocplZ_VCVymH0aFjiaYLOH1zR35FjiUETRa60fpFc'
-api_key_env = ''
+api_key = ''
+api_key_env = 'POE_API_KEY'
 api_key_file = ''
 
 [[models]]

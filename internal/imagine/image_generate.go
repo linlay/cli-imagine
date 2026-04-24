@@ -8,6 +8,7 @@ type GenerateInput struct {
 	Model          string
 	BaseURL        string
 	ProxyURL       string
+	TimeoutMs      int
 	APIKey         string
 	Prompt         string
 	Size           string
@@ -77,6 +78,7 @@ func parseGenerateInput(args map[string]any, catalog ModelCatalog) (GenerateInpu
 	input.WebSearch = options.WebSearch
 	input.BaseURL = resolved.EndpointBaseURL
 	input.ProxyURL = resolved.ProxyURL
+	input.TimeoutMs = resolved.TimeoutMs
 	input.APIKey = resolved.APIKey
 	input.RequestKind = resolved.Config.Request.Kind
 	input.AspectField = resolved.Config.Request.AspectField

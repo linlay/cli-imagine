@@ -36,6 +36,7 @@ name = "provider"
 [endpoint]
 base_url = "https://api.example.com/v1"
 proxy_url = "http://127.0.0.1:8001"
+timeout_ms = 45000
 [auth]
 api_key = "provider-key"
 
@@ -55,6 +56,7 @@ parser_by_format = { url = "message_content_image" }
 name = "model-b"
 [models.endpoint]
 base_url = "https://override.example.com/v1"
+timeout_ms = 90000
 [models.auth]
 api_key = "model-key"
 [models.capabilities.edit]
@@ -79,6 +81,12 @@ parser_by_format = { b64_json = "data_b64_json" }
 	}
 	if cfg.Models[1].Endpoint.BaseURL != "https://override.example.com/v1" {
 		t.Fatalf("expected model endpoint override, got %s", cfg.Models[1].Endpoint.BaseURL)
+	}
+	if cfg.Models[0].Endpoint.TimeoutMs != 45000 {
+		t.Fatalf("expected provider timeout inheritance, got %d", cfg.Models[0].Endpoint.TimeoutMs)
+	}
+	if cfg.Models[1].Endpoint.TimeoutMs != 90000 {
+		t.Fatalf("expected model timeout override, got %d", cfg.Models[1].Endpoint.TimeoutMs)
 	}
 	if cfg.Models[1].Auth.APIKey != "model-key" {
 		t.Fatalf("expected model auth override, got %s", cfg.Models[1].Auth.APIKey)
@@ -245,26 +253,18 @@ models:
 	}
 }
 
-func TestImportYAMLShouldConvertRepositoryConfigs(t *testing.T) {
-	src := filepath.Join("..", "..", "configs")
-	dst := t.TempDir()
+func TestRepositoryConfigTemplatesShouldLoadWhenCopiedToLocalTOML(t *testing.T) {
+	repoConfigs := filepath.Join("..", "..", "configs")
+	dir := t.TempDir()
+	copyFile(t, filepath.Join(repoConfigs, "babelark.toml.example"), filepath.Join(dir, "babelark.toml"))
+	copyFile(t, filepath.Join(repoConfigs, "poe.toml.example"), filepath.Join(dir, "poe.toml"))
+	copyDir(t, filepath.Join(repoConfigs, "schemas"), filepath.Join(dir, "schemas"))
+	t.Setenv("BABELARK_API_KEY", "test-babelark-key")
+	t.Setenv("POE_API_KEY", "test-poe-key")
 
-	written, err := ImportYAML(src, dst)
+	cfg, err := LoadDir(dir)
 	if err != nil {
-		t.Fatalf("ImportYAML repository configs: %v", err)
-	}
-	if len(written) == 0 {
-		t.Fatal("expected converted files to be written")
-	}
-	for _, path := range written {
-		if strings.Contains(path, "provider.example") {
-			t.Fatalf("expected example template to be skipped, got %s", path)
-		}
-	}
-
-	cfg, err := LoadDir(dst)
-	if err != nil {
-		t.Fatalf("LoadDir on imported repository configs: %v", err)
+		t.Fatalf("LoadDir on copied repository config templates: %v", err)
 	}
 	if len(cfg.Providers) != 2 {
 		t.Fatalf("expected 2 providers, got %d", len(cfg.Providers))
@@ -297,5 +297,41 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
+	}
+}
+
+func copyFile(t *testing.T, src, dst string) {
+	t.Helper()
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read file %s: %v", src, err)
+	}
+	writeFile(t, dst, string(raw))
+}
+
+func copyDir(t *testing.T, src, dst string) {
+	t.Helper()
+	if err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(target, raw, 0o644)
+	}); err != nil {
+		t.Fatalf("copy dir %s to %s: %v", src, dst, err)
 	}
 }

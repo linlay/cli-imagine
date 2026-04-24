@@ -250,21 +250,21 @@ func TestProviderShouldRouteConfiguredProxyRequests(t *testing.T) {
 
 func TestProviderShouldCacheClientsByProxyURL(t *testing.T) {
 	client := NewImageProviderClient(nil, 1024*1024, 4*1024*1024, 30000)
-	directA, err := client.clientForProxy("")
+	directA, err := client.clientForRequest("", 30000)
 	if err != nil {
-		t.Fatalf("clientForProxy directA: %v", err)
+		t.Fatalf("clientForRequest directA: %v", err)
 	}
-	directB, err := client.clientForProxy("")
+	directB, err := client.clientForRequest("", 30000)
 	if err != nil {
-		t.Fatalf("clientForProxy directB: %v", err)
+		t.Fatalf("clientForRequest directB: %v", err)
 	}
-	proxyA, err := client.clientForProxy("http://127.0.0.1:8001")
+	proxyA, err := client.clientForRequest("http://127.0.0.1:8001", 30000)
 	if err != nil {
-		t.Fatalf("clientForProxy proxyA: %v", err)
+		t.Fatalf("clientForRequest proxyA: %v", err)
 	}
-	proxyB, err := client.clientForProxy("http://127.0.0.1:8001")
+	proxyB, err := client.clientForRequest("http://127.0.0.1:8001", 30000)
 	if err != nil {
-		t.Fatalf("clientForProxy proxyB: %v", err)
+		t.Fatalf("clientForRequest proxyB: %v", err)
 	}
 	if directA != directB {
 		t.Fatal("expected direct client to be cached")
@@ -274,6 +274,21 @@ func TestProviderShouldCacheClientsByProxyURL(t *testing.T) {
 	}
 	if directA == proxyA {
 		t.Fatal("expected direct and proxy clients to differ")
+	}
+}
+
+func TestProviderShouldCacheClientsByTimeoutAndProxyURL(t *testing.T) {
+	client := NewImageProviderClient(nil, 1024*1024, 4*1024*1024, 30000)
+	proxyDefault, err := client.clientForRequest("http://127.0.0.1:8001", 30000)
+	if err != nil {
+		t.Fatalf("clientForRequest proxyDefault: %v", err)
+	}
+	proxyLong, err := client.clientForRequest("http://127.0.0.1:8001", 120000)
+	if err != nil {
+		t.Fatalf("clientForRequest proxyLong: %v", err)
+	}
+	if proxyDefault == proxyLong {
+		t.Fatal("expected clients with different timeouts to differ")
 	}
 }
 

@@ -1,2 +1,9 @@
 .DS_Store
 /imagine
+
+# Local provider account configs and generated assets.
+/configs/*.toml
+!/configs/*.toml.example
+/config/
+/examples/
+/output/

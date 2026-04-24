@@ -17,8 +17,9 @@ import (
 )
 
 type ModelEndpointConfig struct {
-	BaseURL  string `toml:"base_url" yaml:"baseUrl" json:"base_url"`
-	ProxyURL string `toml:"proxy_url" yaml:"proxyUrl" json:"proxy_url"`
+	BaseURL   string `toml:"base_url" yaml:"baseUrl" json:"base_url"`
+	ProxyURL  string `toml:"proxy_url" yaml:"proxyUrl" json:"proxy_url"`
+	TimeoutMs int    `toml:"timeout_ms" yaml:"timeoutMs" json:"timeout_ms"`
 }
 
 type ModelAuthConfig struct {
@@ -193,6 +194,9 @@ func validateProviderFile(provider ProviderConfig) error {
 	if err := validateProxyURL("provider", provider.Endpoint.ProxyURL); err != nil {
 		return err
 	}
+	if err := validateTimeoutMs("provider", provider.Endpoint.TimeoutMs); err != nil {
+		return err
+	}
 	if err := validateAuth("provider auth", provider.Auth); err != nil {
 		return err
 	}
@@ -243,11 +247,17 @@ func mergeEndpoint(provider, model *ModelEndpointConfig) (ModelEndpointConfig, e
 		if strings.TrimSpace(model.ProxyURL) != "" {
 			endpoint.ProxyURL = strings.TrimSpace(model.ProxyURL)
 		}
+		if model.TimeoutMs > 0 {
+			endpoint.TimeoutMs = model.TimeoutMs
+		}
 	}
 	if strings.TrimSpace(endpoint.BaseURL) == "" {
 		return ModelEndpointConfig{}, fmt.Errorf("endpoint.base_url is required")
 	}
 	if err := validateProxyURL("endpoint", endpoint.ProxyURL); err != nil {
+		return ModelEndpointConfig{}, err
+	}
+	if err := validateTimeoutMs("endpoint", endpoint.TimeoutMs); err != nil {
 		return ModelEndpointConfig{}, err
 	}
 	return endpoint, nil
@@ -456,6 +466,13 @@ func validateProxyURL(scope, raw string) error {
 	}
 	if !(strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://")) {
 		return fmt.Errorf("%s.proxy_url must use http or https", scope)
+	}
+	return nil
+}
+
+func validateTimeoutMs(scope string, value int) error {
+	if value < 0 {
+		return fmt.Errorf("%s.timeout_ms must be >= 0", scope)
 	}
 	return nil
 }

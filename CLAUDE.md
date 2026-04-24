@@ -13,7 +13,7 @@
 - 把 provider 差异收敛到本地配置
 - 把图像生成、图像编辑、外部图片导入统一成稳定的 CLI 调用方式
 - 让调用方可以先 discovery，再 inspect，再真正执行
-- 让维护者可以用 `configs/` 维护 API 源配置，再稳定导出到 `examples/`
+- 让维护者可以用 `configs/` 维护可提交配置模板和 schema，同时把本地账号配置留在 ignore 里
 
 它不打算解决的问题：
 
@@ -60,8 +60,9 @@
 ```text
 cli-imagine/
   cmd/imagine/                 # CLI 入口
-  configs/                     # 仓库维护的 YAML 源配置
-  examples/                    # 正式运行配置（TOML + 外部 schema）
+  configs/                     # 可提交配置模板（*.toml.example）与外部 schema
+  examples/                    # 本地实验/输出目录，整体被 git ignore
+  output/                      # 推荐本地图片输出目录，整体被 git ignore
   internal/app/                # Cobra 命令、flag 解析、输出渲染、退出码
   internal/buildinfo/          # 版本与构建信息
   internal/config/             # TOML 加载、schema 路径解析、YAML 导入
@@ -76,9 +77,10 @@ cli-imagine/
 
 补充说明：
 
-- `configs/` 不是运行时配置目录，运行时不会直接读取这里的 `*.yml`
-- `examples/` 是唯一正式示例目录，应始终保持可被 `--config ./examples` 直接加载
-- `config/` 目录现在只保留运行时需要的忽略规则，不再维护重复示例
+- `configs/` 是正式配置模板目录；提交 `*.toml.example` 与 `schemas/`，不提交真实 `*.toml`
+- 本地运行时可把 `configs/<provider>.toml.example` 复制成 `configs/<provider>.toml`，再用 `--config ./configs` 加载
+- `examples/` 与 `output/` 都是本地输出/实验目录，整体被 `.gitignore` 过滤
+- `config/` 目录已删除，不再维护重复示例或忽略规则
 
 ## 5. 数据结构
 
@@ -160,24 +162,24 @@ cli-imagine/
 
 配置加载规则：
 
-- `LoadDir` 只扫描正式配置目录当前层级的 `*.toml`
+- `LoadDir` 只扫描正式配置目录当前层级的 `*.toml`，不会读取 `*.toml.example`
 - provider 名、model 名都必须唯一
 - `input_schema` 相对路径相对于 provider TOML 所在目录解析
 - capability schema 会在加载期编译，错误尽量前置暴露
 
 YAML 导入规则：
 
-- `configs/*.yml` 是源配置，`provider.example.yml` 这类模板文件不应被导入到正式运行目录
+- `ImportYAML` 仍支持把外部 YAML 源配置转换成 `TOML + 外部 schema JSON`
 - `ImportYAML` 负责把内嵌 `inputSchema` 拆成外部 JSON 文件
-- 导出的正式配置默认写到 `examples/`
-- 新增或修改 provider API 时，优先更新 `configs/`，再重新导出 `examples/`
+- 如果导出到 `configs/`，生成的 `*.toml` 属于本地账号配置，会被 ignore；schema 变更需要人工复核后提交
+- 新增或修改 provider API 时，优先更新 `configs/*.toml.example` 与 `configs/schemas/`
 
 鉴权规则：
 
 - `auth` 必须且只能配置 `api_key`、`api_key_env`、`api_key_file` 之一
 - model 一旦声明 `auth`，即整体覆盖 provider `auth`
 - `api_key_env` / `api_key_file` 会在加载期解析成真实 key
-- 当前仓库维护的 YAML 源配置仍保留明文 `apiKey`；这一轮没有迁移到 env/file
+- 当前仓库提交的 provider 模板使用 `api_key_env`，不提交明文 key
 
 请求构造规则：
 
@@ -197,18 +199,18 @@ CLI 解析规则：
 - 输出目录默认是当前目录
 - 所有输出文件都必须落在输出目录内部
 - `data_path` 导入只能读取输出目录内的相对路径，不能越界访问
-- 项目样图固定保留在 `examples/output/sample-babelark-gemini-2-5-flash-image.png`
+- 本地样图建议输出到 `output/`，该目录不进入 git
 
 ## 8. 开发流程
 
 推荐的日常变更流程：
 
 1. 明确变更是在 CLI 层、配置层还是运行时层
-2. 如果涉及 provider API 变更，先更新 `configs/`
-3. 运行 `go run ./cmd/imagine config import-yaml --from ./configs --to ./examples`
+2. 如果涉及 provider API 变更，先更新 `configs/*.toml.example` 与 `configs/schemas/`
+3. 如需从外部 YAML 迁移，运行 `go run ./cmd/imagine config import-yaml --from <src> --to ./configs`
 4. 运行 `go test ./...`
-5. 用 `imagine --config ./examples config validate` 验证配置可加载
-6. 用 `imagine --config ./examples inspect <tool> ...` 检查最终请求是否符合预期
+5. 复制本地 `configs/*.toml.example` 为 ignored `configs/*.toml`，配置环境变量后用 `imagine --config ./configs config validate` 验证配置可加载
+6. 用 `imagine --config ./configs inspect <tool> ...` 检查最终请求是否符合预期
 7. 必要时再用 `generate` 或 `verify` 做真实请求验证
 8. 如果变更影响用户使用方式，同步更新 `README.md`
 9. 如果变更影响分层、语义或目录边界，同步更新 `CLAUDE.md`

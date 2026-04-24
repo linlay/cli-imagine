@@ -39,6 +39,9 @@ func TestParseGenerateInputShouldPropagateProxyURL(t *testing.T) {
 	if input.ProxyURL != "http://127.0.0.1:8001" {
 		t.Fatalf("expected proxy url to propagate, got %s", input.ProxyURL)
 	}
+	if input.TimeoutMs != 120000 {
+		t.Fatalf("expected timeout to propagate, got %d", input.TimeoutMs)
+	}
 }
 
 func TestParseGenerateInputShouldRejectUnsupportedModel(t *testing.T) {
@@ -356,7 +359,7 @@ func testModelCatalog() ModelCatalog {
 		},
 		{
 			Name:     "GPT-Image-1",
-			Endpoint: config.ModelEndpointConfig{BaseURL: "https://image.secondary/v1", ProxyURL: "http://127.0.0.1:8001"},
+			Endpoint: config.ModelEndpointConfig{BaseURL: "https://image.secondary/v1", ProxyURL: "http://127.0.0.1:8001", TimeoutMs: 120000},
 			Auth:     config.ModelAuthConfig{APIKey: "test-secondary-key"},
 			Capabilities: config.ModelCapabilitiesConfig{
 				Generate: capabilityConfig(map[string]any{

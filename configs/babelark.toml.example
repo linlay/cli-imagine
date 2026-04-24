@@ -5,8 +5,8 @@ base_url = 'https://api.babelark.com'
 proxy_url = ''
 
 [auth]
-api_key = 'sk-OeOvdjYlyU1w1Yd1LOpgxl6Fkmv302RBj0eev7eFFPDGyVRF'
-api_key_env = ''
+api_key = ''
+api_key_env = 'BABELARK_API_KEY'
 api_key_file = ''
 
 [[models]]

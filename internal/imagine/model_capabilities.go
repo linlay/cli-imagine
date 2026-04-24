@@ -44,6 +44,7 @@ type ResolvedCapability struct {
 	ToolName        string
 	EndpointBaseURL string
 	ProxyURL        string
+	TimeoutMs       int
 	APIKey          string
 	Config          config.ModelCapabilityConfig
 	ResponseFormat  string
@@ -67,6 +68,7 @@ type CatalogOperation struct {
 	ToolName        string
 	EndpointBaseURL string
 	ProxyURL        string
+	TimeoutMs       int
 	APIKey          string
 	Capability      config.ModelCapabilityConfig
 	CompiledSchema  *jsonschema.Schema
@@ -129,6 +131,7 @@ func mustBuildCatalogOperation(model config.ModelConfig, operation, toolName str
 		ToolName:        toolName,
 		EndpointBaseURL: model.Endpoint.BaseURL,
 		ProxyURL:        model.Endpoint.ProxyURL,
+		TimeoutMs:       model.Endpoint.TimeoutMs,
 		APIKey:          model.Auth.APIKey,
 		Capability:      capability,
 		CompiledSchema:  compiled,
@@ -244,6 +247,7 @@ func (c ModelCatalog) Resolve(model, operation, requestedFormat string) (Resolve
 		ToolName:        capability.ToolName,
 		EndpointBaseURL: capability.EndpointBaseURL,
 		ProxyURL:        capability.ProxyURL,
+		TimeoutMs:       capability.TimeoutMs,
 		APIKey:          capability.APIKey,
 		Config:          capability.Capability,
 		ResponseFormat:  finalFormat,

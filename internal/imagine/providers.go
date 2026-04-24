@@ -25,16 +25,17 @@ type ProviderImage struct {
 }
 
 type ProviderRequestPreview struct {
-	Method     string         `json:"method"`
-	Endpoint   string         `json:"endpoint"`
-	Body       map[string]any `json:"body"`
-	RequestKind string        `json:"request_kind"`
+	Method      string         `json:"method"`
+	Endpoint    string         `json:"endpoint"`
+	Body        map[string]any `json:"body"`
+	RequestKind string         `json:"request_kind"`
 }
 
 type GenerateRequest struct {
 	Model          string
 	BaseURL        string
 	ProxyURL       string
+	TimeoutMs      int
 	APIKey         string
 	Prompt         string
 	Size           string
@@ -55,6 +56,7 @@ type EditRequest struct {
 	Model          string
 	BaseURL        string
 	ProxyURL       string
+	TimeoutMs      int
 	APIKey         string
 	Prompt         string
 	Images         []string
@@ -75,7 +77,7 @@ type EditRequest struct {
 type ImageProviderClient struct {
 	maxFileBytes     int64
 	maxResponseBytes int64
-	timeoutMs        int
+	defaultTimeoutMs int
 	mu               sync.Mutex
 	clients          map[string]*http.Client
 }
@@ -85,17 +87,17 @@ func NewImageProviderClient(client *http.Client, maxFileBytes int64, maxResponse
 	if client == nil {
 		client = newHTTPClient(timeoutMs, "")
 	}
-	clients[""] = client
+	clients[clientCacheKey("", timeoutMs)] = client
 	return &ImageProviderClient{
 		maxFileBytes:     maxFileBytes,
 		maxResponseBytes: maxResponseBytes,
-		timeoutMs:        timeoutMs,
+		defaultTimeoutMs: timeoutMs,
 		clients:          clients,
 	}
 }
 
 func (c *ImageProviderClient) DirectClient() *http.Client {
-	client, err := c.clientForProxy("")
+	client, err := c.clientForRequest("", c.defaultTimeoutMs)
 	if err != nil {
 		return nil
 	}
@@ -103,7 +105,7 @@ func (c *ImageProviderClient) DirectClient() *http.Client {
 }
 
 func (c *ImageProviderClient) Generate(ctx context.Context, req GenerateRequest) (ProviderImage, error) {
-	client, err := c.clientForProxy(req.ProxyURL)
+	client, err := c.clientForRequest(req.ProxyURL, req.TimeoutMs)
 	if err != nil {
 		return ProviderImage{}, err
 	}
@@ -111,11 +113,11 @@ func (c *ImageProviderClient) Generate(ctx context.Context, req GenerateRequest)
 	if err != nil {
 		return ProviderImage{}, fmt.Errorf("unsupported generate request kind: %s", req.RequestKind)
 	}
-	return c.requestImage(ctx, client, req.Model, req.RequestKind, req.BaseURL, req.APIKey, preview.Endpoint, preview.Body, req.ParserKind)
+	return c.requestImage(ctx, client, req.Model, req.RequestKind, req.BaseURL, req.APIKey, preview.Endpoint, preview.Body, req.ParserKind, effectiveTimeoutMs(req.TimeoutMs, c.defaultTimeoutMs))
 }
 
 func (c *ImageProviderClient) Edit(ctx context.Context, req EditRequest) (ProviderImage, error) {
-	client, err := c.clientForProxy(req.ProxyURL)
+	client, err := c.clientForRequest(req.ProxyURL, req.TimeoutMs)
 	if err != nil {
 		return ProviderImage{}, err
 	}
@@ -123,14 +125,14 @@ func (c *ImageProviderClient) Edit(ctx context.Context, req EditRequest) (Provid
 	if err != nil {
 		return ProviderImage{}, fmt.Errorf("unsupported edit request kind: %s", req.RequestKind)
 	}
-	return c.requestImage(ctx, client, req.Model, req.RequestKind, req.BaseURL, req.APIKey, preview.Endpoint, preview.Body, req.ParserKind)
+	return c.requestImage(ctx, client, req.Model, req.RequestKind, req.BaseURL, req.APIKey, preview.Endpoint, preview.Body, req.ParserKind, effectiveTimeoutMs(req.TimeoutMs, c.defaultTimeoutMs))
 }
 
-func (c *ImageProviderClient) requestImage(ctx context.Context, client HTTPDoer, model, requestKind, baseURL, apiKey, path string, body map[string]any, parserKind string) (ProviderImage, error) {
+func (c *ImageProviderClient) requestImage(ctx context.Context, client HTTPDoer, model, requestKind, baseURL, apiKey, path string, body map[string]any, parserKind string, timeoutMs int) (ProviderImage, error) {
 	endpoint := joinURL(baseURL, path)
 	respBytes, err := doJSONRequest(ctx, client, http.MethodPost, endpoint, body, apiKey, c.maxResponseBytes)
 	if err != nil {
-		return ProviderImage{}, fmt.Errorf("provider request failed for model %q requestKind %q endpoint %q timeoutMs %d: %w", model, requestKind, endpoint, c.timeoutMs, err)
+		return ProviderImage{}, fmt.Errorf("provider request failed for model %q requestKind %q endpoint %q timeoutMs %d: %w", model, requestKind, endpoint, timeoutMs, err)
 	}
 	return parseProviderImage(ctx, client, respBytes, parserKind, apiKey, c.maxFileBytes)
 }
@@ -252,19 +254,34 @@ func PreviewEditRequest(req EditRequest) (ProviderRequestPreview, error) {
 	}
 }
 
-func (c *ImageProviderClient) clientForProxy(proxyURL string) (*http.Client, error) {
-	key := strings.TrimSpace(proxyURL)
+func (c *ImageProviderClient) clientForRequest(proxyURL string, timeoutMs int) (*http.Client, error) {
+	timeoutMs = effectiveTimeoutMs(timeoutMs, c.defaultTimeoutMs)
+	key := clientCacheKey(proxyURL, timeoutMs)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if client, ok := c.clients[key]; ok {
 		return client, nil
 	}
-	client, err := buildProxyAwareHTTPClient(c.timeoutMs, key)
+	client, err := buildProxyAwareHTTPClient(timeoutMs, strings.TrimSpace(proxyURL))
 	if err != nil {
 		return nil, err
 	}
 	c.clients[key] = client
 	return client, nil
+}
+
+func effectiveTimeoutMs(requestTimeoutMs, defaultTimeoutMs int) int {
+	if requestTimeoutMs > 0 {
+		return requestTimeoutMs
+	}
+	if defaultTimeoutMs > 0 {
+		return defaultTimeoutMs
+	}
+	return 30000
+}
+
+func clientCacheKey(proxyURL string, timeoutMs int) string {
+	return fmt.Sprintf("%d|%s", effectiveTimeoutMs(timeoutMs, 30000), strings.TrimSpace(proxyURL))
 }
 
 func buildProxyAwareHTTPClient(timeoutMs int, proxyURL string) (*http.Client, error) {

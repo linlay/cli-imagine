@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	DefaultProviderTimeoutMs   = 30000
-	DefaultMaxResponseBytes    = 32 * 1024 * 1024
-	DefaultMaxFileBytes  int64 = 20 * 1024 * 1024
+	DefaultProviderTimeoutMs       = 30000
+	DefaultMaxResponseBytes        = 32 * 1024 * 1024
+	DefaultMaxFileBytes      int64 = 20 * 1024 * 1024
 )
 
 type RunContext struct {
@@ -81,6 +81,7 @@ func (rt *Runtime) Inspect(tool string, args map[string]any) (Inspection, error)
 			"parserKind":      input.ParserKind,
 			"baseUrl":         input.BaseURL,
 			"proxyUrl":        input.ProxyURL,
+			"timeoutMs":       input.TimeoutMs,
 			"requestKind":     input.RequestKind,
 			"aspectField":     input.AspectField,
 			"imageSizeField":  input.ImageSizeField,
@@ -112,6 +113,7 @@ func (rt *Runtime) Inspect(tool string, args map[string]any) (Inspection, error)
 			"parserKind":      input.ParserKind,
 			"baseUrl":         input.BaseURL,
 			"proxyUrl":        input.ProxyURL,
+			"timeoutMs":       input.TimeoutMs,
 			"requestKind":     input.RequestKind,
 			"aspectField":     input.AspectField,
 			"imageSizeField":  input.ImageSizeField,
@@ -260,6 +262,7 @@ func (in GenerateInput) toRequest() GenerateRequest {
 		Model:          in.Model,
 		BaseURL:        in.BaseURL,
 		ProxyURL:       in.ProxyURL,
+		TimeoutMs:      in.TimeoutMs,
 		APIKey:         in.APIKey,
 		Prompt:         in.Prompt,
 		Size:           in.Size,
@@ -298,6 +301,7 @@ func (in EditInput) toRequest(images []string) EditRequest {
 		Model:          in.Model,
 		BaseURL:        in.BaseURL,
 		ProxyURL:       in.ProxyURL,
+		TimeoutMs:      in.TimeoutMs,
 		APIKey:         in.APIKey,
 		Prompt:         in.Prompt,
 		Images:         images,
